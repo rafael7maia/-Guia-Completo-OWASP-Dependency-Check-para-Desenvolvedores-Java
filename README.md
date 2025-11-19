@@ -1930,4 +1930,400 @@ Crie `renovate.json`:
     </formats>
     <suppressionFiles>
       <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
-    </suppressionFiles
+    </suppressionFiles>
+    <nvd>
+      <apiKey>${env.NVD_API_KEY}</apiKey>
+    </nvd>
+    <ossindexAnalyzerEnabled>true</ossindexAnalyzerEnabled>
+  </configuration>
+  <executions>
+    <execution>
+      <goals>
+        <goal>check</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+- ✅ Scan automático em múltiplos ambientes
+- ✅ Múltiplas fontes de vulnerabilidades (NVD + OSS Index)
+- ✅ Supressões documentadas
+- ✅ Métricas e dashboards
+- ✅ Processo de correção definido
+
+#### **Nível 4 - Expert**
+- ✅ Tudo do nível 3, mais:
+- ✅ Automação de atualizações (Dependabot/Renovate)
+- ✅ Integração com Security Dashboard corporativo
+- ✅ Políticas de segurança automatizadas
+- ✅ SLA de correção por severidade
+- ✅ Treinamento contínuo do time
+- ✅ Contribuição para comunidade (reportar falsos positivos)
+
+---
+
+### 📊 Métricas Recomendadas
+
+#### **KPIs de Segurança de Dependências:**
+
+1. **Mean Time to Remediate (MTTR)**
+   - Crítico: < 24 horas
+   - Alto: < 7 dias
+   - Médio: < 30 dias
+   - Baixo: < 90 dias
+
+2. **Vulnerabilities by Severity**
+   ```
+   Crítico: 0 (meta)
+   Alto: < 5
+   Médio: < 20
+   Baixo: < 50
+   ```
+
+3. **Dependency Freshness**
+   - % de dependências atualizadas nos últimos 6 meses: > 80%
+   - % de dependências com 2+ anos: < 10%
+
+4. **Coverage**
+   - % de projetos com Dependency-Check: 100%
+   - % de builds com scan automático: 100%
+
+---
+
+### 🚨 Alertas e Notificações
+
+#### **Slack Integration:**
+
+```bash
+#!/bin/bash
+# notify-slack.sh
+
+WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+REPORT_FILE="target/dependency-check/dependency-check-report.json"
+
+CRITICAL=$(jq '[.dependencies[].vulnerabilities[]? | select(.severity == "CRITICAL")] | length' "$REPORT_FILE")
+HIGH=$(jq '[.dependencies[].vulnerabilities[]? | select(.severity == "HIGH")] | length' "$REPORT_FILE")
+
+if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+  MESSAGE="🚨 *Vulnerabilidades Encontradas!*\n\n"
+  MESSAGE+="🔴 Críticas: $CRITICAL\n"
+  MESSAGE+="🟠 Altas: $HIGH\n\n"
+  MESSAGE+="Projeto: ${PROJECT_NAME}\n"
+  MESSAGE+="Branch: ${GIT_BRANCH}\n"
+  MESSAGE+="<${BUILD_URL}|Ver Relatório>"
+  
+  curl -X POST "$WEBHOOK_URL" \
+    -H 'Content-Type: application/json' \
+    -d "{\"text\": \"$MESSAGE\"}"
+fi
+```
+
+#### **Email Integration (Maven):**
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-antrun-plugin</artifactId>
+  <version>3.1.0</version>
+  <executions>
+    <execution>
+      <phase>verify</phase>
+      <goals>
+        <goal>run</goal>
+      </goals>
+      <configuration>
+        <target>
+          <mail from="ci@empresa.com"
+                tolist="security-team@empresa.com"
+                subject="[SECURITY] Vulnerabilidades Encontradas - ${project.name}"
+                messagefile="target/dependency-check/dependency-check-report.html"
+                messagemimetype="text/html"
+                mailhost="smtp.empresa.com"
+                mailport="587"
+                user="ci@empresa.com"
+                password="${env.SMTP_PASSWORD}"/>
+        </target>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+---
+
+### 🔍 Troubleshooting
+
+#### **Problema 1: Build muito lento**
+
+**Causa:** Download do banco de dados NVD
+
+**Solução:**
+```xml
+<configuration>
+  <!-- Usar cache centralizado -->
+  <dataDirectory>${user.home}/.m2/dependency-check-data</dataDirectory>
+  
+  <!-- Desabilitar atualização automática em builds locais -->
+  <autoUpdate>false</autoUpdate>
+  
+  <!-- Usar NVD API Key -->
+  <nvd>
+    <apiKey>${env.NVD_API_KEY}</apiKey>
+  </nvd>
+</configuration>
+```
+
+#### **Problema 2: Rate Limiting do NVD**
+
+**Erro:**
+```
+[ERROR] Failed to download NVD data: 403 Forbidden
+```
+
+**Solução:**
+1. Obter API Key: https://nvd.nist.gov/developers/request-an-api-key
+2. Configurar:
+```bash
+export NVD_API_KEY='sua-key-aqui'
+```
+
+#### **Problema 3: Falsos Positivos**
+
+**Sintoma:** CVE reportado não afeta sua versão
+
+**Solução:**
+```xml
+<!-- dependency-check-suppressions.xml -->
+<suppress>
+  <notes>
+    <![CDATA[
+    CVE-2023-12345 não afeta versão 1.2.3 conforme:
+    https://github.com/project/security/advisories/GHSA-xxxx
+    ]]>
+  </notes>
+  <gav>com.example:library:1.2.3</gav>
+  <cve>CVE-2023-12345</cve>
+</suppress>
+```
+
+#### **Problema 4: Memória Insuficiente**
+
+**Erro:**
+```
+[ERROR] Java heap space
+```
+
+**Solução Maven:**
+```bash
+export MAVEN_OPTS="-Xmx2048m"
+mvn dependency-check:check
+```
+
+**Solução Gradle:**
+```groovy
+// gradle.properties
+org.gradle.jvmargs=-Xmx2048m
+```
+
+#### **Problema 5: Proxy Corporativo**
+
+**Erro:**
+```
+[ERROR] Connection timeout
+```
+
+**Solução:**
+```xml
+<configuration>
+  <proxyServer>proxy.empresa.com</proxyServer>
+  <proxyPort>8080</proxyPort>
+  <proxyUsername>${env.PROXY_USER}</proxyUsername>
+  <proxyPassword>${env.PROXY_PASS}</proxyPassword>
+</configuration>
+```
+
+---
+
+### 📚 Recursos Adicionais
+
+#### **Documentação Oficial:**
+- 🔗 [OWASP Dependency-Check](https://jeremylong.github.io/DependencyCheck/)
+- 🔗 [Maven Plugin](https://jeremylong.github.io/DependencyCheck/dependency-check-maven/)
+- 🔗 [Gradle Plugin](https://jeremylong.github.io/DependencyCheck/dependency-check-gradle/)
+
+#### **Bases de Dados de Vulnerabilidades:**
+- 🔗 [NVD - National Vulnerability Database](https://nvd.nist.gov/)
+- 🔗 [OSS Index](https://ossindex.sonatype.org/)
+- 🔗 [GitHub Advisory Database](https://github.com/advisories)
+- 🔗 [Snyk Vulnerability DB](https://security.snyk.io/)
+
+#### **Ferramentas Complementares:**
+- 🔗 [Snyk](https://snyk.io/) - Scan de vulnerabilidades + correção automatizada
+- 🔗 [Dependabot](https://github.com/dependabot) - Atualizações automáticas
+- 🔗 [Renovate](https://www.mend.io/free-developer-tools/renovate/) - Gestão de dependências
+- 🔗 [OWASP Dependency-Track](https://dependencytrack.org/) - Dashboard centralizado
+
+#### **Padrões e Frameworks:**
+- 🔗 [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- 🔗 [CWE - Common Weakness Enumeration](https://cwe.mitre.org/)
+- 🔗 [CVSS Calculator](https://www.first.org/cvss/calculator/3.1)
+
+---
+
+### 🎓 Treinamento do Time
+
+#### **Workshop Sugerido (2 horas):**
+
+**Parte 1: Teoria (30 min)**
+- O que são vulnerabilidades de dependências?
+- Como funcionam CVEs e CVSS?
+- Impacto de vulnerabilidades conhecidas (casos reais)
+- Responsabilidade compartilhada
+
+**Parte 2: Hands-On (60 min)**
+- Instalar e configurar Dependency-Check
+- Rodar primeiro scan
+- Analisar relatório
+- Corrigir vulnerabilidade real
+- Criar supressão documentada
+
+**Parte 3: Integração (30 min)**
+- Configurar no CI/CD
+- Definir políticas de segurança
+- Processo de triagem e correção
+- Q&A
+
+#### **Materiais de Apoio:**
+```markdown
+# Cheat Sheet - Dependency-Check
+
+## Comandos Rápidos
+
+### Maven
+mvn dependency-check:check              # Rodar scan
+mvn dependency-check:update-only        # Atualizar DB
+mvn dependency-check:purge              # Limpar cache
+
+### Gradle
+./gradlew dependencyCheckAnalyze        # Rodar scan
+./gradlew dependencyCheckUpdate         # Atualizar DB
+./gradlew dependencyCheckPurge          # Limpar cache
+
+## Configuração Mínima (Maven)
+<plugin>
+  <groupId>org.owasp</groupId>
+  <artifactId>dependency-check-maven</artifactId>
+  <version>9.0.7</version>
+  <configuration>
+    <failBuildOnCVSS>7</failBuildOnCVSS>
+  </configuration>
+</plugin>
+
+## Severidade CVSS
+9.0-10.0  = CRITICAL (Corrigir AGORA)
+7.0-8.9   = HIGH     (Corrigir em 7 dias)
+4.0-6.9   = MEDIUM   (Corrigir em 30 dias)
+0.1-3.9   = LOW      (Avaliar e planejar)
+
+## Obter NVD API Key
+https://nvd.nist.gov/developers/request-an-api-key
+
+## Suprimir Falso Positivo
+<suppress>
+  <notes>Justificativa aqui</notes>
+  <gav>group:artifact:version</gav>
+  <cve>CVE-2023-12345</cve>
+</suppress>
+```
+
+### 🎯 Próximos Passos
+
+Agora que você tem o guia completo, siga esta ordem:
+
+#### **Semana 1: Setup Básico**
+- [ ] Instalar Dependency-Check localmente
+- [ ] Adicionar plugin no projeto
+- [ ] Rodar primeiro scan
+- [ ] Analisar relatório
+
+#### **Semana 2: Correções**
+- [ ] Identificar vulnerabilidades críticas/altas
+- [ ] Atualizar dependências
+- [ ] Criar arquivo de supressões
+- [ ] Validar correções
+
+#### **Semana 3: Automação**
+- [ ] Integrar com CI/CD
+- [ ] Configurar notificações
+- [ ] Definir políticas de build
+- [ ] Documentar processo
+
+#### **Semana 4: Melhoria Contínua**
+- [ ] Configurar Dependabot/Renovate
+- [ ] Criar dashboard de métricas
+- [ ] Treinar time
+- [ ] Revisar processo
+
+---
+
+### 💡 Dicas Finais
+
+1. **Comece Simples:** Não tente implementar tudo de uma vez
+2. **Priorize Críticos:** Foque primeiro em vulnerabilidades críticas/altas
+3. **Documente Tudo:** Especialmente supressões e decisões
+4. **Automatize:** Quanto mais automático, melhor
+5. **Eduque o Time:** Segurança é responsabilidade de todos
+6. **Monitore Continuamente:** Novas vulnerabilidades surgem diariamente
+7. **Seja Pragmático:** Nem toda vulnerabilidade precisa ser corrigida imediatamente
+
+---
+
+### 🤝 Contribuindo
+
+Encontrou algum erro ou tem sugestões? 
+
+- 📧 Email: devmasterteam@exemplo.com
+- 🐛 Issues: github.com/seu-repo/issues
+- 💬 Discussões: github.com/seu-repo/discussions
+
+---
+
+### 📄 Licença
+
+Este guia é disponibilizado sob licença MIT. Sinta-se livre para usar, modificar e compartilhar!
+
+---
+
+### ✅ Checklist Final
+
+Antes de considerar seu projeto "seguro":
+
+- [ ] Dependency-Check configurado e rodando
+- [ ] Build falha em vulnerabilidades críticas/altas
+- [ ] Processo de correção documentado
+- [ ] Time treinado
+- [ ] Métricas sendo acompanhadas
+- [ ] Automação de atualizações configurada
+- [ ] Revisão periódica agendada
+- [ ] Documentação atualizada
+
+---
+
+## 🎉 Conclusão
+
+**Lembre-se:**
+> "Segurança não é um produto, é um processo." - Bruce Schneier
+
+A implementação do Dependency-Check é apenas o primeiro passo. O verdadeiro valor vem do processo contínuo de:
+- ✅ Monitoramento
+- ✅ Correção
+- ✅ Aprendizado
+- ✅ Melhoria
+
+**Boa sorte e bons scans! 🚀🔒**
+
+---
+
+**Última atualização:** 2025-11-19  
+**Versão do Guia:** 1.0  
+**Versão do Dependency-Check:** 9.0.7
